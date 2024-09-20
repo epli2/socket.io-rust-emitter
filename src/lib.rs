@@ -143,16 +143,18 @@ mod tests {
     use redis::Msg;
     use rmp_serde::Deserializer;
     use serde::Deserialize;
+    use testcontainers::runners::SyncRunner;
 
     macro_rules! create_redis {
         ($redis:ident) => {
-            use testcontainers::{clients, core::RunArgs, images, Docker};
-            let docker = clients::Cli::default();
-            let container =
-                docker.run_with_args(images::redis::Redis::default(), RunArgs::default());
+            let redis = testcontainers::GenericImage::new("redis", "latest")
+                .with_exposed_port(testcontainers::core::ContainerPort::Tcp(6379))
+                .with_wait_for(testcontainers::core::WaitFor::message_on_stdout("Ready to accept connections"))
+                .start()
+                .unwrap();
             let redis_url = format!(
                 "redis://localhost:{}",
-                container.get_host_port(6379).unwrap()
+                redis.get_host_port_ipv4(6379).unwrap()
             );
             let $redis = redis::Client::open(redis_url.as_str()).unwrap();
         };
