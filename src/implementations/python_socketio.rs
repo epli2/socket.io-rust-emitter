@@ -4,7 +4,7 @@ use redis::Commands;
 use serde::Serialize;
 use serde_json::json;
 
-use crate::Emitter;
+use crate::{Emitter, Result};
 
 impl Emitter {
     /// Overrides the default channel name.
@@ -13,7 +13,11 @@ impl Emitter {
         self
     }
 
-    pub fn emit_json<T: Serialize, Event: Display>(mut self, event: Event, message: T) -> Emitter {
+    pub fn emit_json<T: Serialize, Event: Display>(
+        &mut self,
+        event: Event,
+        message: T,
+    ) -> Result<()> {
         fn _emit_json(
             redis: &mut redis::Client,
             channel: &str,
@@ -21,7 +25,7 @@ impl Emitter {
             room: Option<&str>,
             event: &str,
             data: &serde_json::Value,
-        ) {
+        ) -> Result<()> {
             let message = json!({
                 "method": "emit",
                 "event": event,
@@ -32,10 +36,11 @@ impl Emitter {
                 "callback": null,
                 "host_id": null,
             });
-            let _: () = redis.publish(channel, message.to_string()).unwrap();
+            let _: () = redis.publish(channel, message.to_string())?;
+            Ok(())
         }
         let event = event.to_string();
-        let data = serde_json::to_value(&message).unwrap();
+        let data = serde_json::to_value(&message)?;
 
         if self.rooms.is_empty() {
             _emit_json(
@@ -45,7 +50,7 @@ impl Emitter {
                 None,
                 &event,
                 &data,
-            );
+            )?;
         } else {
             for room in self.rooms.iter() {
                 _emit_json(
@@ -55,10 +60,10 @@ impl Emitter {
                     Some(&room),
                     &event,
                     &data,
-                );
+                )?;
             }
         }
-        self
+        Ok(())
     }
 }
 
@@ -243,10 +248,11 @@ while True:
     #[test]
     fn test_emit_json() {
         let (redis, redis_url, container) = launch_containers(None);
-        let emitter = Emitter::new(redis::Client::open(redis_url).unwrap());
+        let emitter = Emitter::new(redis::Client::open(redis_url).unwrap()).unwrap();
         emitter
             .to("room")
-            .emit_json("my_event", json!({"key": "value"}));
+            .emit_json("my_event", json!({"key": "value"}))
+            .unwrap();
         // Now check to see if the message was received
         let messages = PythonSocketIOImage::messages(&container);
         container.stop().unwrap();
@@ -264,10 +270,13 @@ while True:
     #[test]
     fn test_custom_channel() {
         let (redis, redis_url, container) = launch_containers(Some("custom_channel".to_string()));
-        let emitter = Emitter::new(redis::Client::open(redis_url).unwrap()).channel("custom_channel");
+        let emitter = Emitter::new(redis::Client::open(redis_url).unwrap())
+            .unwrap()
+            .channel("custom_channel");
         emitter
             .to("room")
-            .emit_json("my_event", json!({"key": "value"}));
+            .emit_json("my_event", json!({"key": "value"}))
+            .unwrap();
         // Now check to see if the message was received
         let messages = PythonSocketIOImage::messages(&container);
         container.stop().unwrap();
@@ -285,8 +294,10 @@ while True:
     #[test]
     fn test_no_room() {
         let (redis, redis_url, container) = launch_containers(None);
-        let emitter = Emitter::new(redis::Client::open(redis_url).unwrap());
-        emitter.emit_json("my_event", json!({"key": "value"}));
+        let mut emitter = Emitter::new(redis::Client::open(redis_url).unwrap()).unwrap();
+        emitter
+            .emit_json("my_event", json!({"key": "value"}))
+            .unwrap();
         // Now check to see if the message was received
         let messages = PythonSocketIOImage::messages(&container);
         container.stop().unwrap();
@@ -304,8 +315,8 @@ while True:
     #[test]
     fn test_array_data() {
         let (redis, redis_url, container) = launch_containers(None);
-        let emitter = Emitter::new(redis::Client::open(redis_url).unwrap());
-        emitter.emit_json("my_event", json!([1, 2, 3]));
+        let mut emitter = Emitter::new(redis::Client::open(redis_url).unwrap()).unwrap();
+        emitter.emit_json("my_event", json!([1, 2, 3])).unwrap();
         // Now check to see if the message was received
         let messages = PythonSocketIOImage::messages(&container);
         container.stop().unwrap();

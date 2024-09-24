@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::Emitter;
+use crate::{Emitter, Result};
 use redis::Commands;
 use rmp_serde::Serializer;
 use serde::Serialize;
@@ -41,7 +41,7 @@ impl Emitter {
         self
     }
 
-    pub fn emit(mut self, message: Vec<&str>) -> Emitter {
+    pub fn emit(&mut self, message: Vec<&str>) -> Result<()> {
         let packet = Packet {
             _type: 2,
             data: message.iter().map(|s| s.to_string()).collect(),
@@ -53,8 +53,7 @@ impl Emitter {
         };
         let mut msg = Vec::new();
         let val = (self.uid.clone(), packet, opts);
-        val.serialize(&mut Serializer::new(&mut msg).with_struct_map())
-            .unwrap();
+        val.serialize(&mut Serializer::new(&mut msg).with_struct_map())?;
 
         let channel = if self.rooms.len() == 1 {
             format!("{}{}#", self.channel, self.rooms.join("#"))
@@ -62,10 +61,10 @@ impl Emitter {
             self.channel.clone()
         };
 
-        let _: () = self.redis.publish(channel, msg).unwrap();
+        let _: () = self.redis.publish(channel, msg)?;
         self.rooms = vec![];
         self.flags = HashMap::new();
-        self
+        Ok(())
     }
 }
 
@@ -91,8 +90,8 @@ mod tests {
         pubsub.subscribe("socket.io#/#").unwrap();
 
         // act
-        let io = Emitter::new(redis);
-        io.emit(vec!["test1", "test2"]);
+        let mut io = Emitter::new(redis).unwrap();
+        io.emit(vec!["test1", "test2"]).unwrap();
 
         // assert
         let actual = decode_msg(pubsub.get_message().unwrap());
@@ -122,8 +121,8 @@ mod tests {
         pubsub.subscribe("socket.io#/custom#").unwrap();
 
         // act
-        let io = Emitter::new(redis);
-        io.of("/custom").emit(vec!["test"]);
+        let io = Emitter::new(redis).unwrap();
+        io.of("/custom").emit(vec!["test"]).unwrap();
 
         // assert
         let actual = decode_msg(pubsub.get_message().unwrap());
@@ -153,8 +152,8 @@ mod tests {
         pubsub.subscribe("socket.io#/custom#").unwrap();
 
         // act
-        let io = Emitter::new(redis);
-        io.of("/custom").emit(vec!["test"]);
+        let io = Emitter::new(redis).unwrap();
+        io.of("/custom").emit(vec!["test"]).unwrap();
 
         // assert
         let actual = decode_msg(pubsub.get_message().unwrap());
@@ -184,8 +183,8 @@ mod tests {
         pubsub.subscribe("socket.io#/#room1#").unwrap();
 
         // act
-        let io = Emitter::new(redis);
-        io.to("room1").emit(vec!["test"]);
+        let io = Emitter::new(redis).unwrap();
+        io.to("room1").emit(vec!["test"]).unwrap();
 
         // assert
         let actual = decode_msg(pubsub.get_message().unwrap());

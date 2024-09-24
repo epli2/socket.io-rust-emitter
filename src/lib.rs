@@ -28,31 +28,31 @@ pub struct EmitterOpts<'a> {
 }
 
 pub trait IntoEmitter {
-    fn into_emitter(self) -> Emitter;
+    fn into_emitter(self) -> Result<Emitter>;
 }
 
 impl IntoEmitter for redis::Client {
-    fn into_emitter(self) -> Emitter {
-        create_emitter(self, "socket.io", "/")
+    fn into_emitter(self) -> Result<Emitter> {
+        Ok(create_emitter(self, "socket.io", "/"))
     }
 }
 
 impl<'a> IntoEmitter for EmitterOpts<'a> {
-    fn into_emitter(self) -> Emitter {
+    fn into_emitter(self) -> Result<Emitter> {
         let addr = format!("redis://{}:{}", self.host, self.port);
         let prefix = self.key.unwrap_or("socket.io");
 
-        create_emitter(redis::Client::open(addr.as_str()).unwrap(), prefix, "/")
+        Ok(create_emitter(redis::Client::open(addr.as_str())?, prefix, "/"))
     }
 }
 
 impl IntoEmitter for &str {
-    fn into_emitter(self) -> Emitter {
-        create_emitter(
-            redis::Client::open(format!("redis://{}", self).as_str()).unwrap(),
+    fn into_emitter(self) -> Result<Emitter> {
+        Ok(create_emitter(
+            redis::Client::open(format!("redis://{}", self).as_str())?,
             "socket.io",
             "/",
-        )
+        ))
     }
 }
 
@@ -74,7 +74,7 @@ fn create_emitter(redis: redis::Client, prefix: &str, nsp: &str) -> Emitter {
 }
 
 impl Emitter {
-    pub fn new<I: IntoEmitter>(data: I) -> Emitter {
+    pub fn new<I: IntoEmitter>(data: I) -> Result<Emitter> {
         data.into_emitter()
     }
 
@@ -95,6 +95,22 @@ compile_error!("At least one of the features 'js-v7' or 'python-v4' must be enab
 
 #[cfg(all(feature = "js-v7", feature = "python-v4"))]
 compile_error!("Only one of the features 'js-v7' or 'python-v4' can be enabled.");
+
+#[non_exhaustive]
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Error connecting to Redis: {0}")]
+    Redis(#[from] redis::RedisError),
+    #[error("Error serializing data: {0}")]
+    #[cfg(feature = "python-v4")]
+    Serde(#[from] serde_json::Error),
+    #[error("Error serializing data: {0}")]
+    #[cfg(feature = "js-v7")]
+    Serde(#[from] rmp_serde::encode::Error),
+
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 pub(crate) mod tests {
