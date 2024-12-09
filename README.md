@@ -1,5 +1,9 @@
 # socketio-rust-emitter
 
+Emits messages to a Redis instance for consumption by either:
+- (default) socket.io servers (protocol version 5, socket.io-redis-adapter v7) (under the feature flag `js_v7`)
+- python-socketio (version 4) (under the feature flag `py_v4`)
+
 [![build status](https://github.com/epli2/socketio-rust-emitter/actions/workflows/ci.yaml/badge.svg?branch=master&event=push)](https://github.com/epli2/socketio-rust-emitter/actions)
 [![socketio-rust-emitter at crates.io](https://img.shields.io/crates/v/socketio-rust-emitter.svg)](https://crates.io/crates/socketio-rust-emitter)
 [![socketio-rust-emitter at docs.rs](https://docs.rs/socketio-rust-emitter/badge.svg)](https://docs.rs/socketio-rust-emitter)
