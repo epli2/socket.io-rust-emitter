@@ -12,6 +12,9 @@ jobs:
           - stable
           - beta
           - nightly
+        features:
+          - js-v7
+          - python-v4
 
     steps:
       - uses: actions/checkout@v2
@@ -26,16 +29,20 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
+          args: --no-default-features --features ${{ matrix.features }}
 
       - uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --no-default-features --features ${{ matrix.features }}
 
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
+          args: --no-default-features --features ${{ matrix.features }}
 
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
+          args: --no-default-features --features ${{ matrix.features }}
